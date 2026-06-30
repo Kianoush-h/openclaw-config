@@ -119,6 +119,20 @@ We fix these **one at a time**: explain → discuss → apply on the host → te
 
 ---
 
+### #10 — Google Workspace (`gog`) OAuth expired — **MED** — 🆕 found 2026-06-30 (tool-health pass)
+- **Symptom:** `gog` Gmail and Calendar calls fail with `oauth2: "invalid_grant" "Bad Request"`.
+- **Root cause:** the Google OAuth refresh token for `gog` is expired or revoked. Affects all Workspace tools (Gmail, Calendar, Drive, Docs, Sheets) — referenced heavily in the workspace `TOOLS.md`.
+- **Fix (operator action — interactive OAuth):** `gog auth add` (with `GOG_KEYRING_PASSWORD`/`GOG_ACCOUNT` set) to re-authorize, then `gog calendar list` to verify. Cannot be done headlessly from the gateway (needs browser consent). See `docs/11`.
+- **Status:** open — needs your interactive re-auth.
+
+### #11 — `browser-automation` skill error — **LOW** — 🆕 found 2026-06-30
+- **Symptom:** the `agent-browser`-backed skill errored on a simple navigate (`run openclaw-browser-automation failed`), though the `agent-browser` binary is healthy and the task completed via a fallback path.
+- **Likely cause:** stale browser session/profile lock or an invocation mismatch.
+- **Fix:** re-test a real multi-step browser flow; if it recurs, clear stale state under `~/.openclaw/browser`. Low priority — core browsing works. See `docs/11`.
+- **Status:** open (monitor).
+
+> Full live tool inventory + health verdict: **`docs/11-tools-inventory.md`**. Summary: memory, web_search (brave), web_fetch, vexa MCP (17 tools), Jira (mcp-atlassian), Slack, Chrome, and all 6 agents are healthy; Google Workspace is down (#10); browser-automation skill is flaky (#11).
+
 ## Suggested fix order
 
 1. **#9 secrets** (security first — and rotate the OpenRouter key)

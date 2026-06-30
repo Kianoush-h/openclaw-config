@@ -65,7 +65,7 @@ Scripted equivalent: `scripts/install.sh` (review it first — it asks before ea
 2. `docs/01-architecture.md` — the mental model
 3. `docs/03-configuration-reference.md` — every key in `openclaw.json`
 4. `docs/04-secrets.md` — the SecretRef model (read before touching any key)
-5. Topic docs as needed (`05`–`09`)
+5. Topic docs as needed (`05`–`11`) — incl. `11-tools-inventory.md` (live tool/skill/MCP health)
 
 ## Golden rules
 
