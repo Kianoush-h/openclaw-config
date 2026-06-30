@@ -50,11 +50,13 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 - **Scope guard:** confirmed `doctor --fix` did **not** auto-cancel TaskFlows (#5 unchanged: 16 blocked) or alter cron (#6 unchanged: 6 jobs) — it only re-pins routing and runs safe migrations; TaskFlow/cron items are left for manual review.
 - **Key learning:** `sessions cleanup` prunes artifacts but does **not** re-pin model routing; the routing repair is in `doctor --fix` under "State integrity". `--fix` is safe-by-default — it reports (not cancels) blocked TaskFlows and only warns on cron overrides.
 
-### #5 — 16 blocked TaskFlows pointing at missing tasks — **MED**
-- **Symptom:** `TaskFlow recovery: … blocked TaskFlow points at missing task …` (5 shown, "+11 more").
-- **Root cause:** orphaned TaskFlows reference tasks that were deleted.
-- **Fix:** inspect each: `openclaw tasks flow show <flow-id>`; cancel the dead ones: `openclaw tasks flow cancel <flow-id>`. (We'll review the list before cancelling.)
-- **Test:** `openclaw status` Tasks line shows `0 issues`; doctor recovery section clears.
+### #5 — 16 blocked TaskFlows pointing at missing tasks — **MED** — ✅ RESOLVED 2026-06-30
+- **Symptom:** `TaskFlow recovery: … blocked TaskFlow points at missing task …` (5 shown, "+11 more"). `openclaw tasks audit` = 32 warnings (16 flows × `stale_blocked` + `blocked_task_missing`), 0 errors.
+- **Root cause:** old standup/Jira-audit/gap-analysis `task_mirrored` flows (21–34 days old) stuck `blocked` with `0 active/0 total` tasks, each referencing a now-deleted task. None active.
+- **Fix applied:** backed up `tasks/` + `flows/` (`taskflows-backup-<ts>.tar.gz`); previewed `openclaw tasks maintenance` (`45 prune`); applied `openclaw tasks maintenance --apply` → pruned 45 terminal flow records; restarted gateway.
+- **Verified:** TaskFlows 47 → 2 (0 blocked, 0 active); `tasks audit` warnings 32 → 0; doctor TaskFlow-recovery section **CLEARED**; status shows `audit clean`.
+- **Note / follow-up:** `status` Tasks line still reports `4 issues` — a *separate* tracked-background-tasks counter (present before this fix), **not** TaskFlows. Candidate minor follow-up (`openclaw tasks list --status failed` / `tasks audit`), not part of #5.
+- **Key learning:** prefer `openclaw tasks maintenance` (preview) / `--apply` over cancelling flows one by one — it reconciles + prunes all terminal flow records safely (0 cron/session impact). TaskFlow records are execution bookkeeping; real outputs (Jira/Slack) persist independently.
 
 ### #6 — Cron model overrides + one job in error — **MED**
 - **Symptoms:**
