@@ -32,12 +32,12 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 - **Verified:** `doctor` warning **CLEARED**; Plugins `Loaded: 7, Errors: 0` (unchanged); `brave` + `slack` both `enabled`/loaded (v2026.6.8); live agent turn succeeded.
 - **Key learning:** the plugin install index migrated from JSON (`plugins/installs.json`) → shared SQLite. On conflict the migration keeps the JSON and warns forever. Reconcile by `plugins registry --refresh` then retiring the legacy JSON — don't hand-edit it (`DO NOT EDIT` header). See `docs/07`/`docs/09`.
 
-### #3 — No command owner configured — **MED (security/usability)**
+### #3 — No command owner configured — **MED (security/usability)** — ✅ RESOLVED 2026-06-30
 - **Symptom:** `No command owner is configured.`
-- **Root cause:** `commands.ownerAllowFrom` is unset → nobody can run owner-only commands (`/config`, `/diagnostics`, exec approvals).
-- **Fix:** `openclaw config set commands.ownerAllowFrom '["slack:<OWNER_USER_ID>"]'` (confirm which Slack user id is the operator — the host's `allowFrom` list is the candidate set) → restart.
-- **Test:** owner-only command works from that account; doctor warning clears.
-- **Repo:** standard config already sets `ownerAllowFrom` (placeholder) — we'll fill the real id.
+- **Root cause:** `commands.ownerAllowFrom` was unset → nobody could run owner-only commands (`/config`, `/diagnostics`, exec approvals).
+- **Fix applied:** backed up config, `openclaw config set commands.ownerAllowFrom '["slack:U0724…"]'` (the operator's confirmed Slack user id), restarted gateway.
+- **Verified:** config reads back the owner id; doctor "No command owner" warning **CLEARED**.
+- **Repo:** standard config keeps `ownerAllowFrom` as a `REPLACE_WITH_OWNER_SLACK_USER_ID` placeholder (real id not committed).
 
 ### #4 — Stale Google session routing in 11 sessions — **MED**
 - **Symptom:** `Found stale Google session routing state in 11 sessions outside the current configured model/runtime route.`
