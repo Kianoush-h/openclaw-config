@@ -136,6 +136,17 @@ We fix these **one at a time**: explain → discuss → apply on the host → te
 
 > Full live tool inventory + health verdict: **`docs/11-tools-inventory.md`**. Summary: memory, web_search (brave), web_fetch, vexa MCP (17 tools), Jira (mcp-atlassian), Slack, Chrome, and all 6 agents are healthy; Google Workspace is down (#10); browser-automation skill is flaky (#11).
 
+### #12 — Channel noise: cron `announce` double-posting + junk history — **MED** — ✅ RESOLVED 2026-06-30
+- **Symptom (from a 19-day audit of `#top5engineering` bot posts):**
+  - `daily-roaster-report` posted **twice** per run — the real report (agent `message` tool) **plus** a "has been posted…" confirmation (cron `announce`).
+  - `competitor-intelligence-digest` broadcast "0 new items / done" **status noise** to `#top5engineering` even though its prompt says don't post when empty — because `announce` delivered the agent's final response (its real digest goes to a *different* channel, `C01HCFZ8BKJ`, via the `message` tool).
+  - The now-disabled `ai-news-daily-digest` had posted **wrong dates** ("20 June 2026" on 06-19/22/27), **likely-fabricated** news (Claude 3.0 "Mythos", Fable 5, Apollo-2.0), **leaked internal/debug** text (06-25), and repeated **failure warnings**.
+- **Root cause:** cron `delivery.mode: announce` posts the agent's final text **on top of** whatever the agent posts via its `message` tool → duplicates; and broadcasts status text when the agent meant to stay silent. (The ai-news content bugs were the granite rate-limit / cheap-model issues addressed in #6.)
+- **Fix applied:**
+  - `openclaw cron edit <roaster> --no-deliver` and `… <competitor> --no-deliver` → `delivery.mode: none`. Roaster now posts once (tool); competitor is silent on `#top5engineering` (verified: a live competitor run posted **nothing** there, `delivery: not-requested`).
+  - **Cleaned channel history:** classified 56 bot posts over the last ~20 days and **deleted 44 junk** (7 failures, 9 broken ai-news, 2 debug leaks, 16 competitor announce-noise, 7 duplicate roaster confirmations, 2 "sent" confirmations, 1 misc) via `openclaw message delete`, **keeping** the 10 clean daily roaster reports + 2 weekly reminders. **No human posts touched** (single-copy reports like 06-17 were protected). 44/44 deleted, 0 failures.
+- **Key learning:** see `docs/06` "Cron delivery: announce vs the agent's own posting". Never run `announce` **and** in-prompt tool posting to the same channel.
+
 ## Suggested fix order
 
 1. **#9 secrets** (security first — and rotate the OpenRouter key)

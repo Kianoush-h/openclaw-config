@@ -89,5 +89,20 @@ Reference jobs: `ai-news-daily-digest`, `competitor-intelligence`, `daily-roaste
 - `{{...}}` placeholders interpolate the webhook JSON payload.
 - `deliver: false` = the agent decides whether to post (it can reply `NO_REPLY`).
 
+### Cron delivery: `announce` vs the agent's own posting (avoid double-posts)
+
+A cron job can deliver its result two ways, and using **both** spams the channel:
+- **`announce`** (`delivery.mode: announce`, set via `--announce`) — the runner posts the agent's **final response text** to `delivery.to`.
+- **The agent's `message` tool** — if the prompt tells the agent to "post to channel X", the agent posts there itself.
+
+If the prompt says "post to the channel" **and** `announce` is on, you get **two posts** per run: the real deliverable (tool) + a chatty "has been posted…" confirmation (announce). Observed live on the reference host's `daily-roaster-report`.
+
+Rules of thumb:
+- **Agent posts via its `message` tool** (and especially if it posts to a *different* channel than `delivery.to`) → set **`--no-deliver`** (`delivery.mode: none`) so the runner doesn't also announce. The tool post is the sole post.
+- **Agent should be silent when there's nothing to report** → keep `announce` off and/or have the prompt reply with exactly `NO_REPLY` (suppresses delivery). Don't rely on the agent's status text — `announce` will broadcast "0 items found" noise otherwise.
+- **Agent just returns text, no tool posting** → `announce` is the right delivery; the agent outputs the deliverable (or `NO_REPLY`).
+
+Inspect/repair: `openclaw cron get <id>` shows `delivery.mode`; `openclaw cron edit <id> --no-deliver` / `--announce` toggles it.
+
 ### Internal hooks
 Lifecycle hooks that ship with OpenClaw (`hooks.internal.entries`): `boot-md` (inject boot files), `command-logger`, `session-memory`, `bootstrap-extra-files`. Keep enabled unless debugging.
