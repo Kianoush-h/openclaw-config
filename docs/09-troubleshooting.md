@@ -14,7 +14,7 @@ Doctor groups findings into sections. Mapping of what we saw on the reference ho
 | Doctor finding | Meaning | Fix |
 |----------------|---------|-----|
 | `Invalid models.json schema: providers must have required properties` | An `agents/<id>/agent/models.json` exists but lacks a `providers` object (e.g. is `{}`) | Delete the file (inherit root models) or give it a valid `providers` block. See `config/agents/qa/agent/models.json` |
-| `Left plugin install index in place … conflicting plugin install metadata for: brave, slack` | Legacy `plugins/installs.json` conflicts with shared SQLite state | `openclaw doctor --fix` (migrates index); if it persists, reconcile/remove the legacy index after backup |
+| `Left plugin install index in place … conflicting plugin install metadata for: brave, slack` | Legacy `plugins/installs.json` conflicts with the shared SQLite registry; migration won't clobber, so it warns forever | See **"Plugin install-index conflict"** below — `doctor --fix` alone won't clear it |
 | `No command owner is configured` | `commands.ownerAllowFrom` unset → nobody can run owner-only commands/approvals | `openclaw config set commands.ownerAllowFrom '["slack:UXXXXXXXX"]'` then restart |
 | `Found stale Google session routing state in N sessions` | Old sessions pinned to a prior model/runtime | `openclaw doctor --fix` (re-pins to current default), or clear the affected sessions |
 | `tools.<agent>.allow … unknown entries (image)` | Allowlist names a tool not available in this runtime | Remove `image` from the allowlist, or enable an image-capable provider/tool |
@@ -24,6 +24,20 @@ Doctor groups findings into sections. Mapping of what we saw on the reference ho
 | `gateway.startup_failed: tailscale funnel requires gateway auth mode=password` | `tailscale.mode: funnel` (public) needs password auth | Use `mode: serve` (private tailnet, token auth) or set `gateway.auth.mode: password` |
 
 > Most state-drift items (stale routing, plugin index, blocked flows) are fixed by `openclaw doctor --fix`. **Read the proposed changes first**, snapshot config, and restart after.
+
+## Plugin install-index conflict (`installs.json` ↔ SQLite)
+
+OpenClaw migrated plugin install bookkeeping from `~/.openclaw/plugins/installs.json` to a shared **SQLite** registry. If the two disagree for a plugin, the migration keeps the JSON and re-warns on every command. `openclaw plugins doctor` will still say "No plugin issues detected" — the plugins work; it's stale-state noise. Clear it by making SQLite authoritative, then retiring the JSON:
+
+```bash
+cp ~/.openclaw/plugins/installs.json ~/.openclaw/plugins/installs.json.bak.$(date +%s)
+openclaw plugins registry --refresh        # rebuild SQLite registry from manifests
+mv ~/.openclaw/plugins/installs.json ~/.openclaw/plugins/installs.json.disabled.$(date +%s)
+systemctl --user restart openclaw-gateway.service
+openclaw doctor | grep -i "install index" || echo CLEARED
+openclaw plugins list | grep -iE 'brave|slack'   # confirm still enabled/loaded
+```
+The JSON is **not** regenerated — SQLite becomes the single source. Never hand-edit `installs.json` (it carries a `DO NOT EDIT` header). Rollback: restore the `.bak` file and restart.
 
 ## The gateway won't start / keeps restarting
 

@@ -20,11 +20,17 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 - **Verified:** `openclaw doctor` no longer reports the schema error; a live `openclaw agent --agent qa` turn returned `QA_OK openrouter/google/gemini-3.1-flash-lite` with `result: success`, `fallbackUsed: false`.
 - **Key learning:** a per-agent `models.json` *extends* the root catalog with extra providers (see `docs/05`). If an agent needs no extras, the file must be **absent** — an empty `{}` is invalid. Repo ships a valid example at `config/agents/qa/agent/models.json` for the override case.
 
-### #2 — Plugin install-index conflict (`brave`, `slack`) — **MED**
-- **Symptom:** every doctor/status run prints `Left plugin install index in place … conflicting plugin install metadata for: brave, slack`.
-- **Root cause:** legacy `~/.openclaw/plugins/installs.json` conflicts with the newer shared SQLite plugin state.
-- **Fix:** `openclaw doctor --fix` (migrates the index). If it persists, back up and reconcile/remove the legacy `installs.json` entries for brave/slack.
-- **Test:** doctor stops printing the migration warning.
+### #2 — Plugin install-index conflict (`brave`, `slack`) — **MED** — ✅ RESOLVED 2026-06-30
+- **Symptom:** every doctor/status run printed `Left plugin install index in place … conflicting plugin install metadata for: brave, slack` (a startup state-migration warning emitted before the command runs).
+- **Root cause:** legacy `~/.openclaw/plugins/installs.json` held install records for `brave`/`slack` that conflicted with the newer shared **SQLite** plugin registry, so the migration refused to clobber and left the legacy file in place. `openclaw plugins doctor` reported "No plugin issues detected" — purely cosmetic, plugins worked.
+- **Why `doctor --fix` alone wasn't enough:** the migration deliberately *won't* overwrite on conflict, so it kept re-warning.
+- **Fix applied (staged, reversible):**
+  1. `cp installs.json installs.json.bak.<ts>` (backup).
+  2. `openclaw plugins registry --refresh` → rebuilt SQLite registry from manifests (`7/97 enabled plugins indexed`), making SQLite authoritative.
+  3. `mv installs.json installs.json.disabled.<ts>` → removed the stale legacy index (it was **not** regenerated; SQLite is now the single source).
+  4. `systemctl --user restart openclaw-gateway.service`.
+- **Verified:** `doctor` warning **CLEARED**; Plugins `Loaded: 7, Errors: 0` (unchanged); `brave` + `slack` both `enabled`/loaded (v2026.6.8); live agent turn succeeded.
+- **Key learning:** the plugin install index migrated from JSON (`plugins/installs.json`) → shared SQLite. On conflict the migration keeps the JSON and warns forever. Reconcile by `plugins registry --refresh` then retiring the legacy JSON — don't hand-edit it (`DO NOT EDIT` header). See `docs/07`/`docs/09`.
 
 ### #3 — No command owner configured — **MED (security/usability)**
 - **Symptom:** `No command owner is configured.`
@@ -64,7 +70,7 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 - **Fix:** curate `MEMORY.md` down (archive detail to `memory/YYYY-MM-DD.md`), or raise `bootstrapMaxChars`. Recommend trimming — keeps prompt lean.
 - **Test:** doctor bootstrap-size warning clears; `MEMORY.md` injects fully.
 
-### #9 — Secret hygiene: inline secrets — **MED**
+### #9 — Secret hygiene: inline secrets — **MED** — ⏸ DEFERRED (user choice 2026-06-30; 2 live OpenRouter keys remain exposed)
 - **Symptoms (live config):**
   - `OPENROUTER_API_KEY` was **inlined** in the systemd unit (`Environment=OPENROUTER_API_KEY=sk-or-…5a93c35a…`). A drop-in `EnvironmentFile` already exists (`secrets/openrouter.env`), so the inline copy is redundant and leaky.
   - A **second, different** OpenRouter key (`sk-or-v1-0206…99e2`) is hardcoded **inline** in `~/.openclaw/agents/jira-ops/agent/models.json` (both the `openrouter` and `arcee` provider blocks). Found 2026-06-30 while fixing #1. Every other agent's `models.json` correctly uses `"apiKey": "OPENROUTER_API_KEY"` (env reference) — only `jira-ops` hardcodes the literal.

@@ -75,7 +75,9 @@ openclaw plugins list
 openclaw plugins enable|disable <name>
 ```
 
-> **Known issue:** the legacy plugin **install index** (`~/.openclaw/plugins/installs.json`) conflicts with the newer shared SQLite state for `brave`,`slack`, so doctor repeats a migration warning every run. Fix path in `DIAGNOSIS.md` (issue #2).
+### Plugin install state: JSON → SQLite
+
+Install bookkeeping lives in a shared **SQLite** registry (rebuildable with `openclaw plugins registry --refresh`). A legacy `~/.openclaw/plugins/installs.json` may linger from older versions; if its records conflict with SQLite, the migration keeps the JSON and warns on every command. Make SQLite authoritative (`registry --refresh`) and retire the JSON — full procedure in `docs/09`. Don't hand-edit `installs.json`. (This was live issue #2, now resolved.)
 
 ## MCP (Model Context Protocol)
 
