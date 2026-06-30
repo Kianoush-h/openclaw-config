@@ -65,10 +65,13 @@ Model entries can carry rich metadata: `reasoning` (bool), `input` (`["text","im
 
 > Note: a local **Ollama** server (`http://192.168.2.30:11434/v1`) is referenced by `standup`/`jira-ops` catalogs even though the `ollama` plugin is disabled in root — the per-agent catalog is what wires those models in.
 
-## The `image` tool gotcha
+## Allow-listed tools that don't actually exist at runtime (`image`, `browser`)
 
-`qa` and `coder` allowlists include `image`, but it isn't available in the current runtime/provider, so doctor warns:
-`allowlist contains unknown entries (image)`. Either enable an image-capable model/tool or remove `image` from those allowlists. Unknown allow entries are harmless (ignored) but noisy.
+A tool name in `tools.allow` does **not** guarantee the runtime exposes it. Two cases on the reference host:
+- **`image`** — not available; doctor warns `allowlist contains unknown entries (image)` (fixed in #7).
+- **`browser`** — there is **no structured `browser` tool**. The `browser` allow entry is a silent no-op. Browser automation is the **`agent-browser` CLI skill**, invoked via `exec` (`agent-browser open <url>`, `snapshot -i`, …). Doctor doesn't even warn about `browser`, so it's easy to assume a structured browser tool exists when it doesn't.
+
+**Consequence:** when an agent is told it "has a browser" but no real tool/command is exposed, the model **improvises** — e.g. inventing `openclaw-browser-automation` (the live #11 bug). Fix: give the agent the real interface in its workspace `TOOLS.md` (see `workspace-template/TOOLS.md`), and treat phantom allow entries as no-ops to clean up.
 
 ## Adding / editing an agent
 

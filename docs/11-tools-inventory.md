@@ -19,7 +19,7 @@ Four layers (see `docs/07`): **built-in tools** (gated per agent via `tools.allo
 | **Jira** (mcp-atlassian) | skill | ✅ working | `GET /rest/api/3/myself` → HTTP 200, valid token |
 | Chrome (browser engine) | system | ✅ present | Google Chrome 149 at `/usr/bin/google-chrome-stable` |
 | Core browser task | built-in | ✅ working | qa agent returned example.com `<h1>` |
-| `browser-automation` skill (`agent-browser`) | skill | ⚠️ flaky | skill call errored mid-run ("`run openclaw-browser-automation` failed"); task still completed via fallback. Binary present + responds. Watch / investigate if heavy browser automation is needed |
+| Browser automation (`agent-browser` CLI skill) | skill | ✅ working | `agent-browser open` succeeds; `qa` runs `open`+`snapshot -i` correctly after the #11 fix. NB: there is **no** structured `browser` tool — agents must call the `agent-browser` CLI via `exec` |
 | **Google Workspace** (`gog`: Gmail, Calendar, Drive, Docs, Sheets) | skill | ❌ **broken** | `oauth2: "invalid_grant"` on Gmail **and** Calendar — OAuth refresh token expired/revoked |
 | Slack channel | plugin | ✅ working | gateway connected; agent replies delivered |
 | 6 agents (main/qa/critic/coder/standup/jira-ops) | runtime | ✅ working | live turns succeeded (main, qa, coder) |
@@ -52,8 +52,18 @@ gog calendar list                       # verify
 ```
 Because OAuth consent needs a browser, this can't be done headlessly from the gateway — run it from an interactive shell on the host (`! gog auth add` in a session, or SSH in).
 
-### ⚠️ `browser-automation` skill error
-The `agent-browser`-backed skill errored on a simple navigate though the binary is healthy and the task completed via fallback. Likely a session/profile lock or invocation mismatch. Re-test with a real multi-step flow; clear any stale browser profile under `~/.openclaw/browser` if it recurs.
+### ✅ Browser automation (was #11) — fixed
+There is **no structured `browser` tool**; browser work is the **`agent-browser` CLI skill** run via `exec`. Agents that lacked the command in their workspace `TOOLS.md` hallucinated a fake `openclaw-browser-automation` command. Fixed by adding the real `agent-browser` interface to the qa/coder workspaces (and to `workspace-template/TOOLS.md`). The correct commands:
+```bash
+agent-browser open <url>            # navigate
+agent-browser snapshot -i           # element refs @e1, @e2 …
+agent-browser click @e1             # interact
+agent-browser fill @e2 "text"
+agent-browser wait --load networkidle
+agent-browser screenshot page.png
+agent-browser skills get core --full   # full reference
+```
+Any agent expected to browse needs this in its bootstrap `TOOLS.md`. See `DIAGNOSIS.md` #11.
 
 ## How to re-run these checks
 

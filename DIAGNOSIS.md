@@ -125,11 +125,14 @@ We fix these **one at a time**: explain → discuss → apply on the host → te
 - **Fix (operator action — interactive OAuth):** `gog auth add` (with `GOG_KEYRING_PASSWORD`/`GOG_ACCOUNT` set) to re-authorize, then `gog calendar list` to verify. Cannot be done headlessly from the gateway (needs browser consent). See `docs/11`.
 - **Status:** open — needs your interactive re-auth.
 
-### #11 — `browser-automation` skill error — **LOW** — 🆕 found 2026-06-30
-- **Symptom:** the `agent-browser`-backed skill errored on a simple navigate (`run openclaw-browser-automation failed`), though the `agent-browser` binary is healthy and the task completed via a fallback path.
-- **Likely cause:** stale browser session/profile lock or an invocation mismatch.
-- **Fix:** re-test a real multi-step browser flow; if it recurs, clear stale state under `~/.openclaw/browser`. Low priority — core browsing works. See `docs/11`.
-- **Status:** open (monitor).
+### #11 — Browser automation: agents hallucinated a fake command — **LOW** — ✅ RESOLVED 2026-06-30
+- **Symptom:** asked to browse, the `qa` agent ran (via `exec`) `openclaw-browser-automation --url … --capture-text h1` → `command not found` (exit 127); `coder` instead replied "No `browser` tool is available." Task limped through via a `web_fetch` fallback.
+- **Real root cause (via session trajectory + agent probes):**
+  1. **There is no structured `browser` tool at runtime.** `browser` appears in `qa`/`coder` `tools.allow` but is a **no-op** (like the `image` tool in #7). Browser automation is provided by the **`agent-browser` CLI skill** (run through `exec`/Bash), documented in `~/.openclaw/skills/agent-browser/SKILL.md` (`agent-browser open <url>`, `snapshot -i`, `click @e1`, …). The CLI + headless Chrome 149 are healthy (`agent-browser open` succeeds standalone).
+  2. **The subagent workspaces lacked the command.** `workspace/TOOLS.md` says "use `agent-browser`", but `workspace-qa/TOOLS.md` only described "a headless Chrome browser" with **no command**, and `workspace-coder/TOOLS.md` had no browser note at all. With a browser implied but no interface given, the cheap models **invented** `openclaw-browser-automation`. Nothing in OpenClaw ever defined that command.
+- **Fix applied:** added an explicit "Browser (use the `agent-browser` CLI)" section — with the real commands and a "do NOT invent commands" note — to `workspace-qa/TOOLS.md` and `workspace-coder/TOOLS.md` (backed up first). Restarted gateway.
+- **Verified (clean session):** `qa` now runs `agent-browser open https://example.com` + `agent-browser snapshot -i` and returns the H1 — **0** hallucinated commands, **2** correct `agent-browser` calls.
+- **Key learning:** an allow-listed tool name that the runtime doesn't expose (`browser`, `image`) is silently a no-op; agents then improvise. Real browser automation = the `agent-browser` CLI skill via `exec`. Every workspace whose agent may browse needs the `agent-browser` command interface in its bootstrap `TOOLS.md`. Repo `workspace-template/TOOLS.md` now ships it.
 
 > Full live tool inventory + health verdict: **`docs/11-tools-inventory.md`**. Summary: memory, web_search (brave), web_fetch, vexa MCP (17 tools), Jira (mcp-atlassian), Slack, Chrome, and all 6 agents are healthy; Google Workspace is down (#10); browser-automation skill is flaky (#11).
 
