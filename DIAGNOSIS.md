@@ -12,12 +12,13 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 
 ## Issue list (prioritized)
 
-### #1 — `qa` agent model catalog is broken — **HIGH**
+### #1 — `qa` agent model catalog is broken — **HIGH** — ✅ RESOLVED 2026-06-30
 - **Symptom:** `model catalog load issue: Invalid models.json schema: providers must have required properties providers` for `~/.openclaw/agents/qa/agent/models.json`.
-- **Root cause:** that file is literally `{}` — a per-agent model override with no `providers` object.
-- **Effect:** `qa` can't load its model catalog cleanly; may fall back unpredictably.
-- **Fix:** delete the file so `qa` inherits the root `models` (simplest), **or** replace it with a valid `providers` block (example shipped at `config/agents/qa/agent/models.json`).
-- **Test:** `openclaw doctor` no longer reports the schema error; run a `qa` turn.
+- **Root cause:** that file was literally `{}` (2 bytes, dated Apr 7) — a per-agent model override with no `providers` object.
+- **Effect:** `qa`'s catalog failed to load on every gateway start.
+- **Fix applied:** backed up (`models.json.empty.bak.<ts>`) and **deleted** the empty file so `qa` inherits the root `models` catalog (its configured models — `gemini-3.1-flash-lite` + `grok-4.3` fallback — both live in root). Restarted the gateway.
+- **Verified:** `openclaw doctor` no longer reports the schema error; a live `openclaw agent --agent qa` turn returned `QA_OK openrouter/google/gemini-3.1-flash-lite` with `result: success`, `fallbackUsed: false`.
+- **Key learning:** a per-agent `models.json` *extends* the root catalog with extra providers (see `docs/05`). If an agent needs no extras, the file must be **absent** — an empty `{}` is invalid. Repo ships a valid example at `config/agents/qa/agent/models.json` for the override case.
 
 ### #2 — Plugin install-index conflict (`brave`, `slack`) — **MED**
 - **Symptom:** every doctor/status run prints `Left plugin install index in place … conflicting plugin install metadata for: brave, slack`.
@@ -65,14 +66,16 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 
 ### #9 — Secret hygiene: inline secrets — **MED**
 - **Symptoms (live config):**
-  - `OPENROUTER_API_KEY` was **inlined** in the systemd unit (`Environment=OPENROUTER_API_KEY=sk-or-…`). A drop-in `EnvironmentFile` already exists (`secrets/openrouter.env`), so the inline copy is redundant and leaky.
+  - `OPENROUTER_API_KEY` was **inlined** in the systemd unit (`Environment=OPENROUTER_API_KEY=sk-or-…5a93c35a…`). A drop-in `EnvironmentFile` already exists (`secrets/openrouter.env`), so the inline copy is redundant and leaky.
+  - A **second, different** OpenRouter key (`sk-or-v1-0206…99e2`) is hardcoded **inline** in `~/.openclaw/agents/jira-ops/agent/models.json` (both the `openrouter` and `arcee` provider blocks). Found 2026-06-30 while fixing #1. Every other agent's `models.json` correctly uses `"apiKey": "OPENROUTER_API_KEY"` (env reference) — only `jira-ops` hardcodes the literal.
   - `hooks.token` stored **inline** in `openclaw.json`.
   - `mcp.servers.vexa.headers["X-API-Key"]` stored **inline** in `openclaw.json`.
 - **Fix:**
-  1. Remove the inline `Environment=OPENROUTER_API_KEY=…` line from the unit (keep the `.d/env.conf` EnvironmentFile). Consider **rotating** the key since it sat in a readable unit.
-  2. Move `hooks.token` to SecretRef `/hooks/token` (add value to `secrets.json`).
-  3. Move vexa `X-API-Key` to SecretRef `/vexa/apiKey`.
-  - The standard config in this repo already uses SecretRefs for all three.
+  1. Remove the inline `Environment=OPENROUTER_API_KEY=…` line from the unit (keep the `.d/env.conf` EnvironmentFile). **Rotate** the key — it sat in a readable unit.
+  2. Replace the hardcoded key in `jira-ops/agent/models.json` (both provider blocks) with `"apiKey": "OPENROUTER_API_KEY"` like the other agents. **Rotate** this key too.
+  3. Move `hooks.token` to SecretRef `/hooks/token` (add value to `secrets.json`).
+  4. Move vexa `X-API-Key` to SecretRef `/vexa/apiKey`.
+  - The standard config in this repo already uses SecretRefs / env references for all of these.
 - **Test:** `openclaw secrets audit` reports no inline secrets; gateway still authenticates to OpenRouter, webhooks, and the vexa MCP after restart.
 
 ---

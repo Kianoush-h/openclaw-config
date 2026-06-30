@@ -46,7 +46,24 @@ Each agent has `tools.allow` and/or `tools.deny`:
 
 ## Per-agent model overrides (`agents/<id>/agent/models.json`)
 
-Optional. If present, it **must** contain a top-level `providers` object. An empty `{}` is invalid and breaks the agent's model catalog (this is the live `qa` bug — see `DIAGNOSIS.md`). If an agent needs no special catalog, **delete the file** and it inherits the root `models`. A valid minimal example is in `config/agents/qa/agent/models.json`.
+Optional. If present, it **must** contain a top-level `providers` object. An empty `{}` is invalid and breaks the agent's model catalog (this was the live `qa` bug — see `DIAGNOSIS.md` #1). If an agent needs no special catalog, **delete the file** and it inherits the root `models`. A valid minimal example is in `config/agents/qa/agent/models.json`.
+
+### What per-agent catalogs are actually for (observed on the reference host)
+
+These files **extend** the root catalog with providers/models only that agent should see — they're how the deployment gives different agents different model menus beyond what's in root `openclaw.json`:
+
+| Agent | Extra providers in its `models.json` | Example models |
+|-------|--------------------------------------|----------------|
+| `main` | `arcee`, `codex` | `arcee/trinity-large-thinking`, `codex/gpt-5.4` |
+| `critic` | `openrouter` (subset) | `kimi-k2.6`, `qwen3.6-35b-a3b` |
+| `coder` | `openrouter` (full list) | full root model set |
+| `standup` | `openrouter`, `arcee`, `ollama`, `codex` | `minimax-m2.5`, `claude-sonnet-4.6`, local `ollama` @ `192.168.2.30:11434` |
+| `jira-ops` | `openrouter` (`auto`/`hunter`/`healer`), `arcee`, `ollama` | OpenRouter Auto routing |
+| `qa` | *(none — inherits root)* | gemini-flash-lite + grok |
+
+Model entries can carry rich metadata: `reasoning` (bool), `input` (`["text","image"]`), `cost` (input/output/cache), `contextWindow`, `maxTokens`, `compat` flags. Each provider block needs an `apiKey` — use the **env-var reference form** `"apiKey": "OPENROUTER_API_KEY"` (resolved from the gateway environment), **never** a literal key. (The reference host's `jira-ops` file hardcoded a literal OpenRouter key — flagged in `DIAGNOSIS.md` #9.)
+
+> Note: a local **Ollama** server (`http://192.168.2.30:11434/v1`) is referenced by `standup`/`jira-ops` catalogs even though the `ollama` plugin is disabled in root — the per-agent catalog is what wires those models in.
 
 ## The `image` tool gotcha
 
