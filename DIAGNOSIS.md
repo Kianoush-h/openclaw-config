@@ -39,11 +39,16 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 - **Verified:** config reads back the owner id; doctor "No command owner" warning **CLEARED**.
 - **Repo:** standard config keeps `ownerAllowFrom` as a `REPLACE_WITH_OWNER_SLACK_USER_ID` placeholder (real id not committed).
 
-### #4 — Stale Google session routing in 11 sessions — **MED**
-- **Symptom:** `Found stale Google session routing state in 11 sessions outside the current configured model/runtime route.`
-- **Root cause:** old sessions pinned to a prior model/runtime; can keep later channel runs on an outdated route.
-- **Fix:** `openclaw doctor --fix` re-pins to the current default; or clear the affected sessions.
-- **Test:** doctor reports 0 stale sessions; new channel messages use the default model.
+### #4 — Stale Google session routing — **MED** — ✅ RESOLVED 2026-06-30
+- **Symptom:** `Found stale Google session routing state in 12 sessions outside the current configured model/runtime route` (had grown 11→12).
+- **Root cause:** old `agent:main` sessions (Slack threads/channels + a cron session, back to ~March) carried pinned "runtime model state" for a prior Google route.
+- **Fix applied (targeted, staged):**
+  1. Backed up config + **all** agent session stores + cron.
+  2. `openclaw sessions cleanup` → pruned 618 unreferenced artifacts (did **not** clear routing).
+  3. `openclaw doctor --fix` → reported `Cleared stale Google session routing state for 12 sessions` (also ran a safe auth-profile JSON→SQLite migration). Restarted gateway.
+- **Verified:** doctor reports **0 stale sessions**; a live `main` turn routed to the default `google/gemini-3.1-flash-lite` (`result: success`).
+- **Scope guard:** confirmed `doctor --fix` did **not** auto-cancel TaskFlows (#5 unchanged: 16 blocked) or alter cron (#6 unchanged: 6 jobs) — it only re-pins routing and runs safe migrations; TaskFlow/cron items are left for manual review.
+- **Key learning:** `sessions cleanup` prunes artifacts but does **not** re-pin model routing; the routing repair is in `doctor --fix` under "State integrity". `--fix` is safe-by-default — it reports (not cancels) blocked TaskFlows and only warns on cron overrides.
 
 ### #5 — 16 blocked TaskFlows pointing at missing tasks — **MED**
 - **Symptom:** `TaskFlow recovery: … blocked TaskFlow points at missing task …` (5 shown, "+11 more").
