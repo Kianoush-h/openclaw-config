@@ -1,0 +1,19 @@
+# NEVER commit real secrets or live state.
+secrets.json
+*.secret.json
+*.env
+!*.example.json
+
+# Live-state artifacts (if anyone copies them in)
+openclaw.json.bak*
+openclaw.json.clobbered.*
+*.last-good
+*.pre-update
+config-snapshots-*.json
+*-snapshot-*.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+node_modules/

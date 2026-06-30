@@ -1,0 +1,19 @@
+# ClawMetry Dashboard — OPTIONAL telemetry/metrics dashboard for OpenClaw.
+# Install to: ~/.config/systemd/user/clawmetry.service
+# Skip this unit entirely if you are not running ClawMetry.
+#
+# ClawMetry runs from a Python venv at ~/.openclaw/clawmetry-venv and serves a
+# dashboard on port 8900. The gateway publishes metrics to it via the token in
+# ~/.clawmetry-gateway.json.
+
+[Unit]
+Description=ClawMetry Dashboard
+After=network.target
+
+[Service]
+ExecStart=/home/USER/.openclaw/clawmetry-venv/bin/clawmetry --no-debug --port 8900
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

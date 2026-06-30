@@ -1,0 +1,37 @@
+# OpenClaw Gateway — systemd USER service.
+# Install to: ~/.config/systemd/user/openclaw-gateway.service
+# Then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now openclaw-gateway.service
+#   loginctl enable-linger "$USER"   # keep it running after logout / on boot
+#
+# SECRETS: do NOT inline API keys here. Put them in an EnvironmentFile
+# (see openclaw-gateway.service.d/env.conf) so they never land in this
+# version-controlled unit. Replace USER below with the service account name.
+
+[Unit]
+Description=OpenClaw Gateway
+After=network-online.target
+Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+ExecStart=/usr/bin/node /home/USER/.npm-global/lib/node_modules/openclaw/dist/index.js gateway --port 18789
+Restart=always
+RestartSec=5
+# Exit 78 = config error: don't thrash-restart on a bad config.
+RestartPreventExitStatus=78
+TimeoutStopSec=30
+TimeoutStartSec=30
+SuccessExitStatus=0 143
+KillMode=control-group
+Environment=HOME=/home/USER
+Environment=TMPDIR=/tmp
+Environment=PATH=/usr/bin:/home/USER/.local/bin:/home/USER/.npm-global/bin:/home/USER/.bun/bin:/usr/local/bin:/bin
+Environment=OPENCLAW_GATEWAY_PORT=18789
+Environment=OPENCLAW_SERVICE_KIND=gateway
+# API keys come from the EnvironmentFile in the .d/ drop-in, NOT inline here.
+
+[Install]
+WantedBy=default.target

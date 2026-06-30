@@ -1,0 +1,325 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.6.8"
+  },
+  "update": {
+    "checkOnStart": true,
+    "channel": "stable"
+  },
+  "browser": {
+    "enabled": true,
+    "executablePath": "/usr/bin/google-chrome-stable",
+    "headless": true,
+    "noSandbox": true,
+    "defaultProfile": "openclaw",
+    "evaluateEnabled": true
+  },
+  "auth": {
+    "profiles": {
+      "openrouter:default": {
+        "provider": "openrouter",
+        "mode": "api_key"
+      }
+    }
+  },
+  "models": {
+    "providers": {
+      "openrouter": {
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "auth": "api-key",
+        "apiKey": {
+          "source": "env",
+          "provider": "default",
+          "id": "OPENROUTER_API_KEY"
+        },
+        "api": "openai-completions",
+        "models": [
+          { "id": "moonshotai/kimi-k2.6",        "name": "Kimi K2.6 (OpenRouter)", "contextWindow": 262144 },
+          { "id": "qwen/qwen3.6-35b-a3b",         "name": "Qwen 3.6 35B A3B",       "contextWindow": 131072 },
+          { "id": "ibm-granite/granite-4.1-8b",   "name": "Granite 4.1 8B",         "contextWindow": 131072 },
+          { "id": "google/gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash Lite",  "contextWindow": 1048576 },
+          { "id": "x-ai/grok-4.3",                "name": "Grok 4.3",               "contextWindow": 1000000 },
+          { "id": "openai/gpt-chat-latest",       "name": "GPT Chat Latest",        "contextWindow": 400000 },
+          { "id": "perceptron/perceptron-mk1",    "name": "Perceptron Mk1",         "contextWindow": 32768 }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openrouter/google/gemini-3.1-flash-lite",
+        "fallbacks": ["openrouter/ibm-granite/granite-4.1-8b"]
+      },
+      "models": {
+        "openrouter/google/gemini-3.1-flash-lite": { "streaming": true },
+        "openrouter/ibm-granite/granite-4.1-8b":   { "streaming": true },
+        "openrouter/moonshotai/kimi-k2.6":         { "streaming": true },
+        "openrouter/qwen/qwen3.6-35b-a3b":         { "streaming": true },
+        "openrouter/x-ai/grok-4.3":                { "streaming": true },
+        "openrouter/openai/gpt-chat-latest":       { "streaming": true },
+        "openrouter/perceptron/perceptron-mk1":    { "streaming": true }
+      },
+      "workspace": "~/.openclaw/workspace",
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "1h",
+        "keepLastAssistants": 3
+      },
+      "compaction": {
+        "mode": "safeguard",
+        "memoryFlush": {
+          "enabled": true,
+          "softThresholdTokens": 4000,
+          "prompt": "Pre-compaction memory flush. Store durable memories now (use memory/YYYY-MM-DD.md; create memory/ if needed). IMPORTANT: If the file already exists, APPEND new content only and do not overwrite existing entries. If nothing to store, reply with NO_REPLY.\nCurrent time: {{now}}",
+          "systemPrompt": "Session nearing compaction. Store durable memories now (use memory/YYYY-MM-DD.md; create memory/ if needed). IMPORTANT: If the file already exists, APPEND new content only and do not overwrite existing entries. If nothing to store, reply with NO_REPLY."
+        }
+      },
+      "heartbeat": { "every": "1h" },
+      "maxConcurrent": 4,
+      "subagents": { "maxConcurrent": 8, "runTimeoutSeconds": 1800 },
+      "timeoutSeconds": 600,
+      "bootstrapMaxChars": 10000,
+      "bootstrapTotalMaxChars": 80000,
+      "contextInjection": "continuation-skip"
+    },
+    "list": [
+      {
+        "id": "main",
+        "default": true,
+        "name": "OpenClaw",
+        "workspace": "~/.openclaw/workspace",
+        "model": {
+          "primary": "openrouter/google/gemini-3.1-flash-lite",
+          "fallbacks": ["openrouter/ibm-granite/granite-4.1-8b"]
+        },
+        "subagents": { "allowAgents": ["qa", "critic", "coder"] },
+        "tools": { "deny": ["canvas", "nodes"], "profile": "full" }
+      },
+      {
+        "id": "qa",
+        "name": "QA Agent",
+        "workspace": "~/.openclaw/workspace-qa",
+        "model": {
+          "primary": "openrouter/google/gemini-3.1-flash-lite",
+          "fallbacks": ["openrouter/x-ai/grok-4.3"]
+        },
+        "tools": {
+          "allow": ["exec", "read", "write", "edit", "browser", "web_fetch", "memory_search", "memory_get"],
+          "deny": ["message", "cron", "nodes", "gateway", "tts", "canvas", "web_search", "agents_list", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status"]
+        }
+      },
+      {
+        "id": "critic",
+        "name": "Critical Thinking Agent",
+        "workspace": "~/.openclaw/workspace-critic",
+        "model": {
+          "primary": "openrouter/x-ai/grok-4.3",
+          "fallbacks": ["openrouter/google/gemini-3.1-flash-lite"]
+        },
+        "tools": {
+          "allow": ["read", "write", "edit", "web_search", "web_fetch", "memory_search", "memory_get"],
+          "deny": ["exec", "browser", "message", "cron", "nodes", "gateway", "tts", "canvas", "agents_list", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status"]
+        }
+      },
+      {
+        "id": "coder",
+        "name": "Coding Agent",
+        "workspace": "~/.openclaw/workspace-coder",
+        "model": {
+          "primary": "openrouter/moonshotai/kimi-k2.6",
+          "fallbacks": ["openrouter/qwen/qwen3.6-35b-a3b"]
+        },
+        "tools": {
+          "allow": ["exec", "read", "write", "edit", "browser", "web_fetch", "web_search", "memory_search", "memory_get"],
+          "deny": ["message", "cron", "nodes", "gateway", "tts", "canvas", "agents_list", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status"]
+        }
+      },
+      {
+        "id": "standup",
+        "name": "Standup Agent",
+        "workspace": "~/.openclaw/workspace-standup",
+        "model": {
+          "primary": "openrouter/ibm-granite/granite-4.1-8b",
+          "fallbacks": ["openrouter/google/gemini-3.1-flash-lite"]
+        },
+        "tools": { "deny": ["canvas", "nodes", "exec", "browser", "cron", "gateway", "tts"] }
+      },
+      {
+        "id": "jira-ops",
+        "name": "Jira Ops Agent",
+        "workspace": "~/.openclaw/workspace-jira",
+        "model": {
+          "primary": "openrouter/ibm-granite/granite-4.1-8b",
+          "fallbacks": ["openrouter/google/gemini-3.1-flash-lite"]
+        },
+        "tools": {
+          "allow": ["exec", "message", "read", "write"],
+          "deny": ["browser", "web_search", "web_fetch", "cron", "nodes", "gateway", "tts", "canvas", "agents_list", "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status", "memory_search", "memory_get"]
+        }
+      }
+    ]
+  },
+  "tools": {
+    "web": {
+      "search": { "enabled": true, "provider": "brave", "maxResults": 5, "timeoutSeconds": 30 },
+      "fetch": { "enabled": true }
+    },
+    "sessions": { "visibility": "all" },
+    "profile": "coding"
+  },
+  "messages": {
+    "groupChat": { "historyLimit": 20 },
+    "queue": { "mode": "followup", "byChannel": { "slack": "followup" }, "debounceMs": 3000 },
+    "inbound": { "debounceMs": 3000, "byChannel": { "slack": 3000 } },
+    "ackReaction": "eyes",
+    "ackReactionScope": "all",
+    "tts": { "provider": "none" }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw",
+    "ownerAllowFrom": ["slack:REPLACE_WITH_OWNER_SLACK_USER_ID"]
+  },
+  "session": { "dmScope": "per-channel-peer" },
+  "hooks": {
+    "enabled": true,
+    "path": "/hooks",
+    "token": { "source": "file", "provider": "filemain", "id": "/hooks/token" },
+    "mappings": [
+      {
+        "match": { "path": "jira" },
+        "action": "agent",
+        "wakeMode": "now",
+        "name": "Jira",
+        "messageTemplate": "Jira webhook: {{webhookEvent}} on {{issue.key}} — \"{{issue.fields.summary}}\". Status: {{issue.fields.status.name}}. Assignee: {{issue.fields.assignee.displayName}}. Changed by: {{user.displayName}}.\n\nReview this Jira update. If it's significant (status moved to Done/In Review, new blocker, new high-priority ticket, or critical comment), post a brief update to Slack channel REPLACE_WITH_SLACK_CHANNEL_ID. Otherwise reply NO_REPLY.",
+        "deliver": false
+      }
+    ],
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "boot-md": { "enabled": true },
+        "command-logger": { "enabled": true },
+        "session-memory": { "enabled": true },
+        "bootstrap-extra-files": { "enabled": true }
+      }
+    }
+  },
+  "channels": {
+    "slack": {
+      "mode": "socket",
+      "webhookPath": "/slack/events",
+      "enabled": true,
+      "botToken": { "source": "file", "provider": "filemain", "id": "/slack/botToken" },
+      "appToken": { "source": "file", "provider": "filemain", "id": "/slack/appToken" },
+      "userTokenReadOnly": true,
+      "groupPolicy": "open",
+      "dmHistoryLimit": 10,
+      "streaming": {
+        "mode": "partial",
+        "nativeTransport": true,
+        "preview": { "toolProgress": true, "commandText": "status" }
+      },
+      "thread": { "historyScope": "thread", "initialHistoryLimit": 20 },
+      "slashCommand": { "enabled": true, "name": "openclaw", "ephemeral": true },
+      "dmPolicy": "pairing",
+      "allowFrom": ["REPLACE_WITH_SLACK_USER_ID_1", "REPLACE_WITH_SLACK_USER_ID_2"],
+      "channels": {
+        "REPLACE_WITH_SLACK_CHANNEL_ID_1": { "enabled": true },
+        "REPLACE_WITH_SLACK_CHANNEL_ID_2": { "enabled": true, "allowBots": "mentions" }
+      }
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "controlUi": { "enabled": true, "allowInsecureAuth": true },
+    "auth": {
+      "mode": "token",
+      "token": { "source": "file", "provider": "filemain", "id": "/gateway/authToken" },
+      "allowTailscale": true
+    },
+    "tailscale": { "mode": "serve", "resetOnExit": false },
+    "http": { "endpoints": { "chatCompletions": { "enabled": true } } },
+    "nodes": {
+      "denyCommands": ["camera.snap", "camera.clip", "screen.record", "calendar.add", "contacts.add", "reminders.add"]
+    }
+  },
+  "memory": {
+    "backend": "qmd",
+    "qmd": {
+      "command": "~/.bun/bin/qmd",
+      "searchMode": "search",
+      "includeDefaultMemory": true,
+      "paths": [
+        { "path": "~/.openclaw/workspace",        "name": "workspace-context", "pattern": "*.md" },
+        { "path": "~/.openclaw/workspace/shared",  "name": "shared-findings",   "pattern": "**/*.md" }
+      ],
+      "sessions": { "enabled": true, "retentionDays": 30 },
+      "scope": { "default": "allow" }
+    }
+  },
+  "skills": {
+    "install": { "nodeManager": "pnpm" },
+    "entries": {
+      "clawhub": { "enabled": true },
+      "session-logs": { "enabled": true },
+      "taskflow-inbox-triage": { "enabled": true }
+    }
+  },
+  "plugins": {
+    "allow": ["brave", "browser", "duckduckgo", "memory-core", "memory-wiki", "ollama", "openrouter", "slack"],
+    "load": { "paths": [] },
+    "entries": {
+      "slack": { "enabled": true, "config": {} },
+      "brave": {
+        "enabled": true,
+        "config": { "webSearch": { "apiKey": { "source": "file", "provider": "filemain", "id": "/brave/apiKey" } } }
+      },
+      "duckduckgo": { "enabled": true, "config": {} },
+      "browser": { "enabled": true, "config": {} },
+      "ollama": { "enabled": false, "config": {} },
+      "openrouter": { "enabled": true, "config": {} },
+      "memory-core": { "enabled": true, "config": { "dreaming": { "enabled": true } } },
+      "memory-wiki": {
+        "enabled": true,
+        "config": {
+          "vaultMode": "bridge",
+          "vault": { "path": "~/.openclaw/wiki/main", "renderMode": "native" },
+          "obsidian": { "enabled": false },
+          "bridge": {
+            "enabled": true,
+            "readMemoryArtifacts": true,
+            "indexDreamReports": true,
+            "indexDailyNotes": true,
+            "indexMemoryRoot": true,
+            "followMemoryEvents": true
+          },
+          "ingest": { "autoCompile": true, "maxConcurrentJobs": 1, "allowUrlIngest": false },
+          "search": { "backend": "shared", "corpus": "all" },
+          "context": { "includeCompiledDigestPrompt": false },
+          "render": { "preserveHumanBlocks": true, "createBacklinks": true, "createDashboards": true }
+        }
+      }
+    },
+    "bundledDiscovery": "compat"
+  },
+  "secrets": {
+    "providers": {
+      "filemain": { "source": "file", "path": "~/.openclaw/secrets.json", "mode": "json" }
+    }
+  },
+  "mcp": {
+    "servers": {
+      "vexa": {
+        "url": "https://REPLACE_WITH_YOUR_MCP_HOST/mcp",
+        "transport": "streamable-http",
+        "headers": { "X-API-Key": { "source": "file", "provider": "filemain", "id": "/vexa/apiKey" } }
+      }
+    }
+  }
+}
