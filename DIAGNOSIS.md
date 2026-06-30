@@ -4,9 +4,25 @@ Captured 2026-06-30 from `openclaw status`, `openclaw health`, and `openclaw doc
 
 **Headline:** the gateway itself is **stable** — systemd `openclaw-gateway.service` is active, no journal errors in 2 days, event loop healthy (p99 ~80ms). The historical `gateway.startup_failed` crashes were a Tailscale-funnel-vs-auth misconfig from 2026-06-05 and are resolved (now `tailscale.mode: serve`). The "buggy" feel comes from **config drift + state-integrity issues** below, not crashes.
 
-We will fix these **one at a time**: I explain the problem → we discuss → apply on the host → test → reflect the change in this repo → push. Nothing is changed on the server without your go-ahead.
+We fix these **one at a time**: explain → discuss → apply on the host → test → reflect in this repo → push. Nothing is changed on the server without your go-ahead.
 
 > Convention before any host change: `cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak.$(date +%s)`
+
+## Status (updated 2026-06-30)
+
+| # | Issue | Sev | Status |
+|---|-------|-----|--------|
+| 1 | `qa` empty `models.json` schema error | HIGH | ✅ Resolved |
+| 2 | Plugin install-index conflict (brave/slack) | MED | ✅ Resolved |
+| 3 | No command owner | MED | ✅ Resolved |
+| 4 | Stale Google session routing (12 sessions) | MED | ✅ Resolved |
+| 5 | 16 blocked TaskFlows | MED | ✅ Resolved |
+| 6 | Failing cron + brittle granite pins | MED | ✅ Resolved |
+| 7 | Unknown `image` tool in allowlists | LOW | ✅ Resolved |
+| 8 | `MEMORY.md` bootstrap truncation | LOW | ✅ Resolved |
+| 9 | Inline secrets (2 live OpenRouter keys) | MED | ⏸ Deferred (user) |
+
+**Remaining doctor findings after the fixes:** (a) #9 secrets — deferred by choice; (b) "Cron model overrides" — informational, intentional (grok pin on competitor-intel + disabled granite job defs); (c) occasionally "1 stale session" reappears as new sessions are created — benign churn, cleared anytime with `openclaw doctor --fix`; (d) a separate `status` "N issues" background-task counter (audit clean) — minor follow-up, unrelated to TaskFlows.
 
 ---
 
@@ -80,11 +96,12 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 - **Fix applied:** backed up config; surgically removed `"image"` from `agents.list[qa|coder].tools.allow` (preserving all other fields); `openclaw config validate` → valid; restarted gateway.
 - **Verified:** doctor unknown-entries warning **CLEARED**; no agent allowlist contains `image`; live `qa` turn returned `QA_TOOLS_OK` (`result: success`).
 
-### #8 — `MEMORY.md` truncated on bootstrap — **LOW**
-- **Symptom:** `MEMORY.md: 16,442 raw / 9,999 injected (39% truncated)`.
-- **Root cause:** file exceeds `agents.defaults.bootstrapMaxChars` (10000).
-- **Fix:** curate `MEMORY.md` down (archive detail to `memory/YYYY-MM-DD.md`), or raise `bootstrapMaxChars`. Recommend trimming — keeps prompt lean.
-- **Test:** doctor bootstrap-size warning clears; `MEMORY.md` injects fully.
+### #8 — `MEMORY.md` truncated on bootstrap — **LOW** — ✅ RESOLVED 2026-06-30
+- **Symptom:** `MEMORY.md: 16,442 raw / 9,999 injected (39% truncated)`; total bootstrap only 21,621 / 80,000 (27% — ample headroom).
+- **Root cause:** file exceeds `agents.defaults.bootstrapMaxChars` (10000 per-file cap).
+- **Fix applied (per user choice — non-destructive):** backed up config; `openclaw config set agents.defaults.bootstrapMaxChars 20000`; restarted gateway.
+- **Verified:** doctor bootstrap-truncation warning **CLEARED**; `MEMORY.md` now injects in full; total bootstrap ~28k still ≈35% of the 80k budget.
+- **Long-term:** the agent should still curate `MEMORY.md` per its workspace `AGENTS.md` (archive old entries to `memory/YYYY-MM-DD.md`).
 
 ### #9 — Secret hygiene: inline secrets — **MED** — ⏸ DEFERRED (user choice 2026-06-30; 2 live OpenRouter keys remain exposed)
 - **Symptoms (live config):**
