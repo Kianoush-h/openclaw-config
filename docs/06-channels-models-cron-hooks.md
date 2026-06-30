@@ -68,7 +68,14 @@ openclaw cron add …   # see --help
 ```
 Reference jobs: `ai-news-daily-digest`, `competitor-intelligence`, `daily-roaster-report`, `openclaw-stable-release`, `Memory Dreaming`, `Weekly Stale Ticket Review`. Each is `isolated` (own session) and most `announce` results to a Slack channel.
 
-> **Gotcha:** a job with `payload.model` set does **not** inherit `agents.defaults.model`. Three reference jobs pin `openrouter/...` models; remove `payload.model` to track the default. One job (`openclaw-stable-release`) is in `error` state — inspect with `openclaw cron show <id>`.
+> **Gotcha 1 — pinning bypasses fallback:** a job with `payload.model` set does **not** inherit `agents.defaults.model` **and bypasses the agent's fallback chain**. Pinning a rate-limited free model (e.g. `ibm-granite/granite-4.1-8b`) therefore makes the job fail hard (`FailoverError: rate_limit`) instead of failing over. Pin only reliable models, or omit `payload.model` to inherit the default + fallbacks.
+>
+> **Gotcha 2 — masked errors:** cron delivery errors surface as a generic `⚠️ ✉️ Message failed`. To get the *real* cause, run the job in debug and wait for the result:
+> ```bash
+> openclaw cron run <job-id> --wait --expect-final --wait-timeout 300s
+> # inspect run.errorReason / run.error  (e.g. rate_limit, not a Slack problem)
+> ```
+> Manage jobs: `openclaw cron disable|enable|edit|rm <id>`, `openclaw cron runs --id <id>` for history.
 
 ## Hooks (inbound webhooks)
 

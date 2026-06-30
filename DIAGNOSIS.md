@@ -58,12 +58,21 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 - **Note / follow-up:** `status` Tasks line still reports `4 issues` — a *separate* tracked-background-tasks counter (present before this fix), **not** TaskFlows. Candidate minor follow-up (`openclaw tasks list --status failed` / `tasks audit`), not part of #5.
 - **Key learning:** prefer `openclaw tasks maintenance` (preview) / `--apply` over cancelling flows one by one — it reconciles + prunes all terminal flow records safely (0 cron/session impact). TaskFlow records are execution bookkeeping; real outputs (Jira/Slack) persist independently.
 
-### #6 — Cron model overrides + one job in error — **MED**
+### #6 — Cron model overrides + one job in error — **MED** — ✅ RESOLVED 2026-06-30
 - **Symptoms:**
-  - 3 jobs hardcode `payload.model` (`granite-4.1-8b`, `grok-4.3`) so they ignore `agents.defaults.model`.
-  - `openclaw-stable-release` (`214e9c80-…`) is in **error** status.
-- **Fix:** `openclaw cron show 214e9c80-…` to find why it errors; for the model-pinned jobs, decide per job whether to remove `payload.model`.
-- **Test:** the failing job runs `ok` on next trigger (or manual run); doctor cron section reflects intended model routing.
+  - 3 jobs hardcoded `payload.model` (2× `granite-4.1-8b`, 1× `grok-4.3`) so they ignore `agents.defaults.model`.
+  - `openclaw-stable-release-monitor` (`214e9c80-…`) was in **error** status (`⚠️ ✉️ Message failed`).
+- **Real root cause (found via `openclaw cron run … --wait`):** the masked "Message failed" was actually `FailoverError: API rate limit reached` / `errorReason: rate_limit` on the pinned **free-tier `granite-4.1-8b`** — and because `payload.model` pins a single model, the agent's **fallback chain is bypassed**, so a rate-limit = hard failure. Not a Slack/delivery problem.
+- **The 3 pinned jobs (goals):**
+  - `ai-news-daily-digest` (granite) — daily AI-news digest → Slack channel.
+  - `competitor-intelligence-digest` (grok) — daily competitor intel → Slack channel.
+  - `openclaw-stable-release-monitor` (granite) — daily GitHub release check → DM. (Also likely obsolete: checks for tags `≥ v2026.5.12` while host runs `2026.6.8`, and DMs `U01GUR7HTGC`, not the owner.)
+- **Fix applied (per user decision — keep only competitor-intel):**
+  - `openclaw cron disable 214e9c80-…` (stable-release-monitor) and `12374192-…` (ai-news) → both `enabled: no, status: disabled` (reversible; not deleted).
+  - Kept `competitor-intelligence-digest` (grok); **live-tested** via `cron run … --wait`: `status: ok`, `delivery: delivered`, ~27s, no rate limit.
+- **Verified:** `openclaw cron list` shows **no jobs in error state**; the two granite jobs confirmed disabled; competitor-intel enabled + ok.
+- **Residual (expected, informational):** doctor still prints "Cron model overrides detected" — it counts `payload.model` on all job *definitions* (incl. disabled ones + the intentional grok pin). Not an error; left intentionally.
+- **Key learning:** a cron `payload.model` pin **bypasses the agent fallback chain** — pinning a rate-limited free model (granite) makes the job brittle. Pin only reliable models, or omit `payload.model` to inherit the default + fallbacks. Use `openclaw cron run <id> --wait --expect-final` to surface the *real* error behind a masked "Message failed".
 
 ### #7 — Unknown tool `image` in `qa`/`coder` allowlists — **LOW**
 - **Symptom:** `tools.qa.tools.allow … unknown entries (image)` (and same for `coder`).
