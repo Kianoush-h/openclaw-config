@@ -74,11 +74,11 @@ We will fix these **one at a time**: I explain the problem → we discuss → ap
 - **Residual (expected, informational):** doctor still prints "Cron model overrides detected" — it counts `payload.model` on all job *definitions* (incl. disabled ones + the intentional grok pin). Not an error; left intentionally.
 - **Key learning:** a cron `payload.model` pin **bypasses the agent fallback chain** — pinning a rate-limited free model (granite) makes the job brittle. Pin only reliable models, or omit `payload.model` to inherit the default + fallbacks. Use `openclaw cron run <id> --wait --expect-final` to surface the *real* error behind a masked "Message failed".
 
-### #7 — Unknown tool `image` in `qa`/`coder` allowlists — **LOW**
+### #7 — Unknown tool `image` in `qa`/`coder` allowlists — **LOW** — ✅ RESOLVED 2026-06-30
 - **Symptom:** `tools.qa.tools.allow … unknown entries (image)` (and same for `coder`).
-- **Root cause:** `image` isn't available in the current runtime/provider/model.
-- **Fix:** remove `image` from those allowlists (the standard config already omits it), or enable an image-capable model/tool if you actually want it.
-- **Test:** doctor stops flagging unknown allow entries.
+- **Root cause:** `image` isn't available in the current runtime/provider/model; unknown allow entries are silently ignored but generate doctor noise.
+- **Fix applied:** backed up config; surgically removed `"image"` from `agents.list[qa|coder].tools.allow` (preserving all other fields); `openclaw config validate` → valid; restarted gateway.
+- **Verified:** doctor unknown-entries warning **CLEARED**; no agent allowlist contains `image`; live `qa` turn returned `QA_TOOLS_OK` (`result: success`).
 
 ### #8 — `MEMORY.md` truncated on bootstrap — **LOW**
 - **Symptom:** `MEMORY.md: 16,442 raw / 9,999 injected (39% truncated)`.
