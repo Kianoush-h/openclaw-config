@@ -98,11 +98,13 @@ A cron job can deliver its result two ways, and using **both** spams the channel
 If the prompt says "post to the channel" **and** `announce` is on, you get **two posts** per run: the real deliverable (tool) + a chatty "has been posted…" confirmation (announce). Observed live on the reference host's `daily-roaster-report`.
 
 Rules of thumb:
-- **Agent posts via its `message` tool** (and especially if it posts to a *different* channel than `delivery.to`) → set **`--no-deliver`** (`delivery.mode: none`) so the runner doesn't also announce. The tool post is the sole post.
-- **Agent should be silent when there's nothing to report** → keep `announce` off and/or have the prompt reply with exactly `NO_REPLY` (suppresses delivery). Don't rely on the agent's status text — `announce` will broadcast "0 items found" noise otherwise.
-- **Agent just returns text, no tool posting** → `announce` is the right delivery; the agent outputs the deliverable (or `NO_REPLY`).
+- **Posting to the SAME channel as `delivery.to` (most report jobs)** → prefer **announce-only**: `--announce` + prompt tells the agent to **output the deliverable as its reply and NOT call any message-send tool** (`NO_REPLY` to skip). This is deterministic — exactly one post, or none.
+- **Posting to a DIFFERENT channel than `delivery.to`** (e.g. the competitor digest posts to its own channel) → the agent *must* tool-post; set **`--no-deliver`** so the runner doesn't also announce to the wrong channel.
+- **Silent when nothing to report** → have the prompt reply with exactly `NO_REPLY` (suppresses delivery). Don't rely on the agent's status text — with `announce` on, that status becomes a post.
 
-Inspect/repair: `openclaw cron get <id>` shows `delivery.mode`; `openclaw cron edit <id> --no-deliver` / `--announce` toggles it.
+⚠️ **Gotcha (live #13):** `--no-deliver` (tool-only delivery) assumes the agent *reliably* calls message-send. It doesn't — the same prompt on a cheap model will sometimes just **output the report as text** expecting `announce` to deliver it. With `announce` off, that run posts **nothing** (a silent miss). For a same-channel job, announce-only avoids this because the agent's reply is always delivered. Only use `--no-deliver` when the agent genuinely must post elsewhere via the tool.
+
+Inspect/repair: `openclaw cron get <id>` shows `delivery.mode`; `openclaw cron edit <id> --no-deliver` / `--announce --channel slack --to <id>` toggles it. Reading a run's session trajectory (`~/.openclaw/agents/<agent>/sessions/<id>.jsonl`) shows whether the agent tool-posted or only replied.
 
 ### Scheduled reports that summarize chat activity: gate on real same-day data
 
