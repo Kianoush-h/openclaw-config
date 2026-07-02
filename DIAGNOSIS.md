@@ -147,6 +147,19 @@ We fix these **one at a time**: explain → discuss → apply on the host → te
   - **Cleaned channel history:** classified 56 bot posts over the last ~20 days and **deleted 44 junk** (7 failures, 9 broken ai-news, 2 debug leaks, 16 competitor announce-noise, 7 duplicate roaster confirmations, 2 "sent" confirmations, 1 misc) via `openclaw message delete`, **keeping** the 10 clean daily roaster reports + 2 weekly reminders. **No human posts touched** (single-copy reports like 06-17 were protected). 44/44 deleted, 0 failures.
 - **Key learning:** see `docs/06` "Cron delivery: announce vs the agent's own posting". Never run `announce` **and** in-prompt tool posting to the same channel.
 
+### #13 — Roaster posted on a holiday with fabricated/stale data — **MED** — ✅ RESOLVED 2026-07-01
+- **Symptom:** on 2026-07-01 (Canada Day, a statutory holiday) the `daily-roaster-report` posted a full standup summary even though **nobody posted a standup that day**. The per-person items were **reused from the previous workday (06-30)** and it falsely declared "No missing posts today."
+- **Root cause (two faults):**
+  1. **No date/holiday awareness** — cron `35 9 * * 1-5` fires every weekday, holidays included.
+  2. **Stale-data carry-over** — the prompt said "scan for posts since the last report, account for timezone differences (posts may appear from a previous day)", so on an empty day it grabbed the prior day's posts and misattributed them to today; and it *always* posted (no empty-day guard).
+- **Fix applied (per user: data-driven + holiday skip):** deleted the bad 07-01 post; rewrote the roaster prompt with:
+  - **STEP 0 date/holiday gate** — if weekend or a listed 2026 Ontario/Canada statutory holiday → reply `NO_REPLY`, post nothing.
+  - **Strict same-day matching** — count only posts actually made *today* (America/Toronto); never include/infer/reuse prior-day posts or its own past reports.
+  - **Empty-day gate** — if zero roster members posted today → `NO_REPLY`, post nothing (never fabricate to fill an empty day).
+  - Post exactly once via the message tool (no confirmation); delivery stays `mode: none` (from #12).
+- **Verified:** manual run on 2026-07-02 (workday, 3 of 5 posted) produced a correct `[2026-07-02]` roaster summarizing only today's 3 posters, flagged the 2 non-posters under "No post yet", and carried **no** 06-30 data. (Test post deleted; scheduled run remains the official one.)
+- **Key learning:** any scheduled "report from chat activity" agent must gate on *real, same-day* source data — add weekend/holiday gates, strict date matching, and an empty-input `NO_REPLY` guard, or it will fabricate/echo stale data on off days. See `docs/06`.
+
 ## Suggested fix order
 
 1. **#9 secrets** (security first — and rotate the OpenRouter key)

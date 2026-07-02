@@ -104,5 +104,16 @@ Rules of thumb:
 
 Inspect/repair: `openclaw cron get <id>` shows `delivery.mode`; `openclaw cron edit <id> --no-deliver` / `--announce` toggles it.
 
+### Scheduled reports that summarize chat activity: gate on real same-day data
+
+A cron job that "reads a channel and summarizes today's posts" (standup roaster, digest, etc.) will **fabricate or echo stale data on off days** unless the prompt guards its inputs. A weekday cron (`* * * * 1-5`) still fires on holidays, and an unguarded prompt that says "scan since the last report / account for timezone differences" will grab the previous day's posts when today is empty. Bake these guards into the prompt:
+
+1. **Date/holiday gate (first step):** determine today's date/weekday in the target timezone; if weekend or a listed statutory holiday → reply `NO_REPLY`, post nothing. (Keep a per-year holiday list; update it yearly.)
+2. **Strict same-day matching:** count only source posts actually made *today*; never include, infer, carry over, or reuse prior-day posts — or the agent's own past reports.
+3. **Empty-input gate:** if there is no real source data today (zero posts) → `NO_REPLY`, post nothing. Never fabricate or reuse to "fill" an empty run.
+4. Combine with `--no-deliver` (see above) so the agent's single tool post is the only post.
+
+This was live issue #13: the standup roaster ran on Canada Day with zero posts and re-posted the prior workday's data as "today". The `NO_REPLY` sentinel suppresses delivery, so gates 1–3 make the job silently skip off days.
+
 ### Internal hooks
 Lifecycle hooks that ship with OpenClaw (`hooks.internal.entries`): `boot-md` (inject boot files), `command-logger`, `session-memory`, `bootstrap-extra-files`. Keep enabled unless debugging.
